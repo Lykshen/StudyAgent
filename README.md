@@ -30,7 +30,7 @@ pip install -r requirements.txt
 python run.py
 ```
 
-浏览器会自动打开 http://127.0.0.1:8765 ，本机免登录。
+浏览器会自动打开网址 ，本机免登录。
 
 自己打包桌面程序：
 
