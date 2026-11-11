@@ -1,0 +1,19 @@
+{
+  "name": "studyagent-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "StudyAgent 手机 App：连接电脑上运行的 StudyAgent",
+  "scripts": {
+    "android": "npx cap add android && npx cap sync android && npx @capacitor/assets generate --android && npx cap open android",
+    "sync": "npx cap sync"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/core": "^6.1.0",
+    "@capacitor/ios": "^6.1.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.1.0"
+  }
+}

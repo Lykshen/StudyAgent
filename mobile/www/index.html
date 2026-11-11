@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1C2430">
+<title>StudyAgent</title>
+<style>
+:root{--ink:#1C2430;--graphite:#5B6573;--rule:#DDE2E8;--blue:#2E5BFF;--red:#C93C3C;--teal:#12936F}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#F6F7F9;color:var(--ink);
+  padding:calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom))}
+h1{font-size:26px;font-weight:900;margin:8px 0 4px}
+p{color:var(--graphite);line-height:1.6;margin:0 0 18px}
+.card{background:#fff;border:1px solid var(--rule);border-radius:12px;padding:18px}
+label{display:block;font-size:13px;color:var(--graphite);margin-bottom:6px}
+input{width:100%;font-size:17px;padding:12px;border:1px solid var(--rule);border-radius:8px}
+button{width:100%;font-size:16px;font-weight:700;padding:13px;border-radius:8px;border:none;background:var(--blue);color:#fff;margin-top:14px}
+button.ghost{background:#fff;color:var(--ink);border:1px solid var(--rule);font-weight:500}
+#msg{margin-top:12px;font-size:14px;min-height:20px;line-height:1.6}
+.err{color:var(--red)}.ok{color:var(--teal)}
+.recent{margin-top:18px}
+.recent a{display:block;padding:12px;background:#fff;border:1px solid var(--rule);border-radius:8px;margin-bottom:8px;color:var(--ink);text-decoration:none}
+ol{color:var(--graphite);font-size:14px;line-height:1.7;padding-left:20px}
+</style>
+</head>
+<body>
+<h1>StudyAgent</h1>
+<p>连接你电脑上运行的 StudyAgent。题库、进度、错题和测试都在电脑上，手机和电脑看到的是同一份。</p>
+<div class="card">
+  <label for="addr">电脑的地址</label>
+  <input id="addr" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="例如 192.168.1.20:8765">
+  <button id="go">连接</button>
+  <div id="msg"></div>
+</div>
+<div class="recent" id="recent"></div>
+<ol>
+  <li>在电脑上打开 StudyAgent，进入「设置 → 设备与互通」，打开「允许手机连接」，然后重新打开 StudyAgent。</li>
+  <li>手机和电脑连同一个 Wi-Fi。</li>
+  <li>把电脑上显示的局域网地址填到上面，连接后输入访问码。</li>
+</ol>
+<script>
+const KEY = "sa_servers";
+const $ = s => document.querySelector(s);
+const list = () => { try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { return []; } };
+function normalize(v) {
+  v = v.trim().replace(/\/+$/, "");
+  if (!v) return "";
+  if (!/^https?:\/\//.test(v)) v = "http://" + v;
+  if (!/:\d+$/.test(v.replace(/^https?:\/\//, ""))) v += ":8765";
+  return v;
+}
+async function reachable(url, ms = 4000) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
+  try { const r = await fetch(url + "/api/docs", { signal: ctl.signal, cache: "no-store" }); clearTimeout(t); return r.ok; } catch (e) { clearTimeout(t); return false; }
+}
+async function connect(url) {
+  const msg = $("#msg");
+  msg.className = ""; msg.textContent = "正在连接 " + url + " …";
+  if (!(await reachable(url))) {
+    msg.className = "err";
+    msg.textContent = "连不上 " + url + "。请确认：电脑上的 StudyAgent 正在运行，并打开了「允许手机连接」；手机和电脑在同一个 Wi-Fi；地址和端口填对了。";
+    return;
+  }
+  const l = [url, ...list().filter(x => x !== url)].slice(0, 5);
+  localStorage.setItem(KEY, JSON.stringify(l));
+  msg.className = "ok"; msg.textContent = "已连接，正在打开…";
+  location.href = url + "/";
+}
+function renderRecent() {
+  const l = list();
+  $("#recent").innerHTML = l.length ? "<label>最近连接</label>" + l.map(u => `<a href="#" data-u="${u}">${u}</a>`).join("") : "";
+  document.querySelectorAll("[data-u]").forEach(a => a.onclick = e => { e.preventDefault(); connect(a.dataset.u); });
+}
+$("#go").onclick = () => { const u = normalize($("#addr").value); if (u) connect(u); };
+$("#addr").onkeydown = e => { if (e.key === "Enter") $("#go").click(); };
+renderRecent();
+// Open the last computer automatically, unless the user came here to switch.
+const last = list()[0];
+if (last && !location.search.includes("switch")) { $("#addr").value = last.replace(/^http:\/\//, ""); connect(last); }
+</script>
+</body>
+</html>

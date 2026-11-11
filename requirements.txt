@@ -1,0 +1,2 @@
+flask>=2.3
+pdfplumber>=0.10   # 可选：导入 PDF；也可用 pypdf

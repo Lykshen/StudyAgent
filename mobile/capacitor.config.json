@@ -1,0 +1,15 @@
+{
+  "appId": "com.studyagent.app",
+  "appName": "StudyAgent",
+  "webDir": "www",
+  "appendUserAgent": "StudyAgentApp",
+  "backgroundColor": "#F6F7F9",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true,
+    "allowNavigation": ["*"]
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

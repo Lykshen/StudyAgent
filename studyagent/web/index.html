@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1C2430">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="StudyAgent">
+<link rel="manifest" href="/web/manifest.json">
+<link rel="apple-touch-icon" href="/web/icons/icon-180.png">
+<title>StudyAgent 学习刷题平台</title>
+<link rel="stylesheet" href="/web/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%231C2430%22/%3E%3Ctext x=%2216%22 y=%2222%22 font-size=%2216%22 text-anchor=%22middle%22 fill=%22white%22 font-family=%22sans-serif%22%3ES%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div class="app" id="shell" hidden>
+  <nav class="side" id="nav">
+    <div class="brand">StudyAgent</div>
+    <div class="brand-sub" id="subjectName">学习刷题平台</div>
+    <a href="#home" data-v="home">总览</a>
+    <a href="#plan" data-v="plan">学习计划</a>
+    <a href="#bank" data-v="bank">题库 <span class="cnt" id="cntBank"></span></a>
+    <a href="#review" data-v="review">错题复习 <span class="cnt" id="cntReview"></span></a>
+    <a href="#exams" data-v="exams">测试</a>
+    <a href="#chat" data-v="chat">智能体 <span class="cnt" id="cntProp"></span></a>
+    <a href="#resources" data-v="resources">学习资源</a>
+    <a href="#models" data-v="models">模型</a>
+    <a href="#settings" data-v="settings">设置</a>
+    <div class="side-foot" id="sideFoot"></div>
+  </nav>
+  <main id="main"></main>
+</div>
+<div id="login" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/web/app.js"></script>
+<script>if ("serviceWorker" in navigator && isSecureContext) navigator.serviceWorker.register("/sw.js").catch(() => {});</script>
+</body>
+</html>
