@@ -135,6 +135,26 @@ d1 = c.post("/api/exams", json={"type": "weekly", "scope": "all", "allow_recent"
 d2 = c.post("/api/exams", json={"type": "weekly", "scope": "all", "allow_recent": True, "sched_date": "2027-02-07"}, headers=A).json["id"]
 check(d1 == d2, "同一日期的定期测试不重复生成")
 
+# ---------- 局域网开关 ----------
+from studyagent import config  # noqa: E402
+PHONE = {"REMOTE_ADDR": "192.168.1.50"}
+config.save(lan=False)
+r = c.get("/api/ping", environ_base=PHONE)
+check(r.status_code == 403 and r.json.get("lan_off") and r.headers.get("Access-Control-Allow-Origin") == "*", "未开启时拒绝其它设备，并说明原因（App 可读）")
+check(c.get("/api/ping", environ_base=LOCAL).status_code == 200, "本机始终可用")
+os.environ["SA_BIND_ALL"] = "1"
+c.put("/api/settings/lan", json={"lan": True}, headers=A)
+r = c.get("/api/ping", environ_base=PHONE)
+check(r.status_code == 200 and r.json["app"] == "StudyAgent" and r.headers.get("Access-Control-Allow-Origin") == "*", "开启后立即生效，App 能跨域检测")
+check(c.post("/api/session/login", json={"code": bcode}, environ_base=PHONE).status_code == 200, "开启后手机能用访问码登录")
+check(c.get("/api/session/local", environ_base=PHONE).status_code == 403, "其它设备不能免登录")
+check(c.post("/api/settings/firewall", json={}, headers=A, environ_base=PHONE).status_code == 403, "防火墙设置只能在本机操作")
+sy = c.get("/api/system", headers=A).json
+check(sy["lan_running"] and not sy["lan_restart"], "系统状态显示正在接受连接")
+os.environ["SA_BIND_ALL"] = "0"
+check(c.get("/api/system", headers=A).json["lan_restart"], "只监听本机时提示需要重新打开")
+c.put("/api/settings/lan", json={"lan": False}, headers=A)
+
 # ---------- 导出 ----------
 raw = c.get("/api/export", headers=A).get_data(as_text=True)
 check("sk-secret-abcdef123456" not in raw and json.loads(raw)["tables"]["attempts"], "导出含作答记录，不含 API Key")

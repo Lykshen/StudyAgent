@@ -63,9 +63,12 @@ def main():
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from studyagent import config, create_app
     cfg = config.load()
-    lan = cfg.get("lan") or "--lan" in sys.argv
-    host = "0.0.0.0" if lan else "127.0.0.1"
-    os.environ["SA_LAN"] = "1" if lan else "0"
+    if "--lan" in sys.argv and not cfg.get("lan"):
+        config.save(lan=True)
+    # Always listen on the network; requests from other devices are refused while
+    # 「允许手机连接」 is off, so switching it on works immediately without a restart.
+    host = "0.0.0.0"
+    os.environ["SA_BIND_ALL"] = "1"
     port = free_port(int(cfg.get("port") or 8765))
     app = create_app()
     srv = serve(app, host, port)

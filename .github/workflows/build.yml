@@ -73,7 +73,10 @@ jobs:
           npx @capacitor/assets generate --android
           npx cap sync android
       - name: 允许连接局域网里的电脑（HTTP）
-        run: sed -i 's/<application /<application android:usesCleartextTraffic="true" /' android/app/src/main/AndroidManifest.xml
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q usesCleartextTraffic $M || sed -i 's/<application/<application android:usesCleartextTraffic="true"/' $M
+          grep -q 'usesCleartextTraffic="true"' $M
       - name: 打包 APK
         working-directory: mobile/android
         run: |

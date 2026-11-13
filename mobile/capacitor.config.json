@@ -5,9 +5,15 @@
   "appendUserAgent": "StudyAgentApp",
   "backgroundColor": "#F6F7F9",
   "server": {
-    "androidScheme": "https",
+    "androidScheme": "http",
     "cleartext": true,
-    "allowNavigation": ["*"]
+    "allowNavigation": [
+      "*",
+      "*.*.*.*",
+      "192.168.*.*",
+      "10.*.*.*",
+      "172.*.*.*"
+    ]
   },
   "android": {
     "allowMixedContent": true

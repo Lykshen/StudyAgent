@@ -4,6 +4,7 @@ import os
 import queue
 import secrets
 import socket
+import sys
 import threading
 import time
 import uuid
@@ -52,20 +53,56 @@ def body():
 
 
 def lan_addresses(port):
-    ips = set()
+    """LAN URLs of this computer. The first one is the address of the default route (usually Wi-Fi /
+    Ethernet); the rest may be virtual adapters (VPN, Hyper-V, WSL, VMware)."""
+    primary, others = None, set()
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("10.255.255.255", 1))
-        ips.add(s.getsockname()[0])
+        primary = s.getsockname()[0]
         s.close()
     except Exception:
         pass
     try:
         for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
-            ips.add(info[4][0])
+            others.add(info[4][0])
     except Exception:
         pass
-    return ["http://%s:%s" % (ip, port) for ip in sorted(ips) if not ip.startswith("127.")]
+    ips = ([primary] if primary and not primary.startswith(("127.", "169.254.")) else []) + \
+        sorted(ip for ip in others if ip != primary and not ip.startswith(("127.", "169.254.")))
+    return ["http://%s:%s" % (ip, port) for ip in ips]
+
+
+LOOPBACK = ("127.0.0.1", "::1")
+
+
+def bound_to_network():
+    """True when the server listens on all interfaces (desktop program always does)."""
+    return os.environ.get("SA_BIND_ALL") == "1"
+
+
+def lan_running():
+    from . import config
+    return bound_to_network() and bool(config.load()["lan"])
+
+
+def lan_restart_needed():
+    from . import config
+    return bool(config.load()["lan"]) and not bound_to_network()
+
+
+@bp.before_app_request
+def lan_gate():
+    """Other devices may connect only while 「允许手机连接」 is on (takes effect immediately)."""
+    if request.remote_addr in LOOPBACK or request.remote_addr is None:
+        return None
+    from . import config
+    if config.load()["lan"]:
+        return None
+    r = jsonify({"error": "这台电脑上的 StudyAgent 没有开启「允许手机连接」。请在电脑上打开：设置 → 设备与互通 → 允许手机连接。", "lan_off": True})
+    r.status_code = 403
+    r.headers["Access-Control-Allow-Origin"] = "*"
+    return r
 
 
 def sse(gen_fn):
@@ -171,7 +208,7 @@ def bootstrap():
         "tiers": {k: {"name": L.TIER_NAMES[k], "desc": L.TIER_DESC[k]} for k in L.TIER_NAMES}, "types": L.TYPE_NAMES,
         "languages": grading.languages(), "agents": agents.agent_list(), "tasks": llm.TASKS,
         "models": [llm.public_model(m) for m in db.q("SELECT * FROM model_configs WHERE owner_id IS NULL OR owner_id=? ORDER BY id", (uid(),))],
-        "lan": lan_addresses(port), "lan_enabled": request.environ.get("SA_LAN", os.environ.get("SA_LAN", "0")) == "1",
+        "lan": lan_addresses(port), "lan_enabled": lan_running(),
         "pending_proposals": db.q1("SELECT COUNT(*) n FROM proposals WHERE user_id=? AND status='pending'", (uid(),))["n"],
     })
 
@@ -1363,7 +1400,7 @@ def system():
     port = request.host.split(":")[-1] if ":" in request.host else "80"
     from . import config
     return jsonify({"version": VERSION, "data_dir": db.DATA_DIR, "lan": lan_addresses(port), "languages": grading.languages(),
-                    "lan_config": config.load()["lan"], "lan_running": os.environ.get("SA_LAN") == "1", "desktop": os.environ.get("SA_DESKTOP") == "1",
+                    "lan_config": config.load()["lan"], "lan_running": lan_running(), "lan_restart": lan_restart_needed(), "desktop": os.environ.get("SA_DESKTOP") == "1", "os": sys.platform, "local": request.remote_addr in ("127.0.0.1", "::1"),
                     "youtube": bool((db.q1("SELECT v FROM meta WHERE k='youtube_key'") or {}).get("v"))})
 
 
@@ -1373,7 +1410,28 @@ def lan_setting():
     from . import config
     c = config.save(lan=bool(body().get("lan")))
     db.audit(uid(), "settings.lan", str(c["lan"]))
-    return jsonify({"lan": c["lan"], "restart_needed": c["lan"] != (os.environ.get("SA_LAN") == "1")})
+    return jsonify({"lan": c["lan"], "running": lan_running(), "restart_needed": lan_restart_needed()})
+
+
+@bp.get("/api/ping")
+def ping():
+    """Unauthenticated reachability check for the phone app's connect page (cross-origin allowed)."""
+    r = jsonify({"app": "StudyAgent", "version": VERSION, "lan": lan_running()})
+    r.headers["Access-Control-Allow-Origin"] = "*"
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@bp.post("/api/settings/firewall")
+@auth(admin=True)
+def firewall_setting():
+    if request.remote_addr not in ("127.0.0.1", "::1"):
+        return err("只能在运行 StudyAgent 的电脑上设置防火墙", 403)
+    from . import netfix
+    port = request.host.split(":")[-1] if ":" in request.host else "8765"
+    r = netfix.allow_windows_firewall(port)
+    db.audit(uid(), "settings.firewall", "ok" if r["ok"] else "fail")
+    return jsonify(r)
 
 
 @bp.get("/api/docs")

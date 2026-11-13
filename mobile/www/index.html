@@ -17,7 +17,7 @@ label{display:block;font-size:13px;color:var(--graphite);margin-bottom:6px}
 input{width:100%;font-size:17px;padding:12px;border:1px solid var(--rule);border-radius:8px}
 button{width:100%;font-size:16px;font-weight:700;padding:13px;border-radius:8px;border:none;background:var(--blue);color:#fff;margin-top:14px}
 button.ghost{background:#fff;color:var(--ink);border:1px solid var(--rule);font-weight:500}
-#msg{margin-top:12px;font-size:14px;min-height:20px;line-height:1.6}
+#msg{margin-top:12px;font-size:14px;min-height:20px;line-height:1.6;white-space:pre-line}
 .err{color:var(--red)}.ok{color:var(--teal)}
 .recent{margin-top:18px}
 .recent a{display:block;padding:12px;background:#fff;border:1px solid var(--rule);border-radius:8px;margin-bottom:8px;color:var(--ink);text-decoration:none}
@@ -35,31 +35,46 @@ ol{color:var(--graphite);font-size:14px;line-height:1.7;padding-left:20px}
 </div>
 <div class="recent" id="recent"></div>
 <ol>
-  <li>在电脑上打开 StudyAgent，进入「设置 → 设备与互通」，打开「允许手机连接」，然后重新打开 StudyAgent。</li>
+  <li>在电脑上打开 StudyAgent，进入「设置 → 设备与互通」，勾选「允许手机连接」。</li>
   <li>手机和电脑连同一个 Wi-Fi。</li>
-  <li>把电脑上显示的局域网地址填到上面，连接后输入访问码。</li>
+  <li>把电脑上「在手机上填」里标着「优先用这个」的地址填到上面，连接后输入访问码（也在那一页）。</li>
 </ol>
 <script>
 const KEY = "sa_servers";
 const $ = s => document.querySelector(s);
 const list = () => { try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { return []; } };
 function normalize(v) {
-  v = v.trim().replace(/\/+$/, "");
+  v = v.trim().replace(/：/g, ":").replace(/。/g, ".").replace(/\s+/g, "").replace(/\/+$/, "");
   if (!v) return "";
-  if (!/^https?:\/\//.test(v)) v = "http://" + v;
+  if (!/^https?:\/\//i.test(v)) v = "http://" + v;
+  v = v.replace(/^HTTP/i, "http");
   if (!/:\d+$/.test(v.replace(/^https?:\/\//, ""))) v += ":8765";
   return v;
 }
-async function reachable(url, ms = 4000) {
-  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
-  try { const r = await fetch(url + "/api/docs", { signal: ctl.signal, cache: "no-store" }); clearTimeout(t); return r.ok; } catch (e) { clearTimeout(t); return false; }
+function timed(p, ms) { return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]); }
+// Returns "ok" | "lan_off" | "other" (something answered but it isn't StudyAgent) | "unreachable"
+async function probe(url) {
+  try {
+    const r = await timed(fetch(url + "/api/ping", { cache: "no-store" }), 6000);
+    if (r.ok) return "ok";
+    try { const j = await r.json(); if (j.lan_off) return "lan_off"; } catch (e) {}
+    return r.status === 404 ? "old" : "other";
+  } catch (e) {
+    // CORS or network failure: check whether anything answers at all.
+    try { await timed(fetch(url + "/", { mode: "no-cors", cache: "no-store" }), 6000); return "old"; } catch (e2) { return "unreachable"; }
+  }
 }
+const HELP = {
+  lan_off: "已经连到电脑了，但电脑上的 StudyAgent 还没开启「允许手机连接」。请在电脑上打开：设置 → 设备与互通 → 勾选「允许手机连接」，然后在这里再点一次连接。",
+  other: "这个地址上有程序在响应，但不是 StudyAgent。请核对电脑上「设置 → 设备与互通 → 在手机上填」里显示的地址和端口。",
+  unreachable: "手机连不到这个地址。请检查：\n1. 电脑上 StudyAgent 正开着，「允许手机连接」已勾选；\n2. 手机和电脑连的是同一个 Wi-Fi（不要用流量，也不要连路由器的访客网络）；\n3. 地址填的是电脑上「在手机上填」里标着「优先用这个」的那个，端口号也要一致；\n4. Windows 电脑：在 StudyAgent 设置里点「允许 StudyAgent 通过防火墙」，Windows 弹窗时点「是」；\n5. 可以先用手机浏览器打开这个地址，打得开再回到这里。"
+};
 async function connect(url) {
   const msg = $("#msg");
   msg.className = ""; msg.textContent = "正在连接 " + url + " …";
-  if (!(await reachable(url))) {
-    msg.className = "err";
-    msg.textContent = "连不上 " + url + "。请确认：电脑上的 StudyAgent 正在运行，并打开了「允许手机连接」；手机和电脑在同一个 Wi-Fi；地址和端口填对了。";
+  const r = await probe(url);
+  if (r !== "ok" && r !== "old") {
+    msg.className = "err"; msg.textContent = HELP[r];
     return;
   }
   const l = [url, ...list().filter(x => x !== url)].slice(0, 5);

@@ -20,8 +20,10 @@ def main():
     if a.data:
         os.environ["STUDYAGENT_DATA"] = os.path.abspath(a.data)
     from studyagent import config
-    host = a.host or ("0.0.0.0" if (a.lan or config.load().get("lan")) else "127.0.0.1")
-    os.environ["SA_LAN"] = "1" if host != "127.0.0.1" else "0"
+    if a.lan and not config.load().get("lan"):
+        config.save(lan=True)
+    host = a.host or ("0.0.0.0" if config.load().get("lan") else "127.0.0.1")
+    os.environ["SA_BIND_ALL"] = "1" if host not in ("127.0.0.1", "localhost") else "0"
     from studyagent import create_app, api, db
     app = create_app()
     url = "http://127.0.0.1:%d" % a.port

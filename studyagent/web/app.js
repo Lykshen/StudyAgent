@@ -2,7 +2,7 @@
 /* ============ core ============ */
 let TOKEN = localStorage.getItem("sa_token") || "";
 const IN_APP = /StudyAgentApp/.test(navigator.userAgent);
-const APP_HOME = /iPhone|iPad|iPod/.test(navigator.userAgent) ? "capacitor://localhost/?switch=1" : "https://localhost/?switch=1";
+const APP_HOME = /iPhone|iPad|iPod/.test(navigator.userAgent) ? "capacitor://localhost/?switch=1" : "http://localhost/?switch=1";
 if (IN_APP) document.documentElement.classList.add("in-app");
 let B = null;               // bootstrap data
 let CATS = [];              // categories of current subject
@@ -796,18 +796,37 @@ V.models.after = async () => {
 };
 
 /* ============ settings ============ */
+function lanStatus(S) {
+  if (!S.lan_config) return '<span class="muted">未开启：只有这台电脑能使用。</span>';
+  if (S.lan_restart) return '<span class="bad-t">设置已保存，关掉 StudyAgent 再重新打开后生效。</span>';
+  return '<span class="ok-t">正在接受连接。</span>';
+}
+function lanAddrHtml(S) {
+  if (!S.lan.length) return '<span class="bad-t">没有检测到局域网地址，请确认电脑已连上 Wi-Fi 或网线。</span>';
+  return S.lan.map((u, i) => `<code>${esc(u)}</code>${i === 0 ? ' <span class="chip s1">优先用这个</span>' : ' <span class="small muted">其它网卡（VPN、虚拟机等），一般用不上</span>'}`).join("<br>");
+}
 V.settings = async () => {
   const S = await api("/api/system"); const isAdmin = B.user.role === "admin"; const users = isAdmin ? await api("/api/users") : [];
   const me = users.find(u => u.id === B.user.id);
   return `<h1>设置</h1><div class="grid2">
   <div class="panel"><h3 style="margin-top:0">设备与互通</h3>
     <p class="small">同一个平台可以在电脑、手机、平板上一起用，数据都存在运行平台的这台电脑上，所有设备看到的是同一份进度。</p>
-    <div class="kv"><b>当前地址</b><span>${esc(location.origin)}</span><b>局域网地址</b><span>${S.lan.length ? S.lan.map(u => `<code>${esc(u)}</code>`).join("<br>") : "—"}</span>
-    <b>允许手机连接</b><span>${isAdmin ? `<label class="row"><input type="checkbox" id="lanToggle" ${S.lan_config ? "checked" : ""}> 开启后，同一 Wi-Fi 的手机 App 或浏览器可以连接这台电脑</label>` : (S.lan_running ? "已开启" : "未开启")}
-      <div class="small ${S.lan_config !== S.lan_running ? "bad-t" : "muted"}" id="lanMsg">${S.lan_config !== S.lan_running ? "设置已保存，重新打开 StudyAgent 后生效。" : S.lan_running ? "正在接受局域网连接。手机 App 里填上面的局域网地址。" : ""}</div></span>
+    <div class="kv"><b>当前地址</b><span>${esc(location.origin)}</span>
+    <b>允许手机连接</b><span>${isAdmin ? `<label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer"><input type="checkbox" id="lanToggle" style="margin-top:4px" ${S.lan_config ? "checked" : ""}><span>同一 Wi-Fi 的手机 App、浏览器或其它电脑可以连接这台电脑</span></label>` : (S.lan_running ? "已开启" : "未开启")}
+      <div class="small" id="lanMsg">${lanStatus(S)}</div></span>
+    <b>在手机上填</b><span id="lanAddr">${lanAddrHtml(S)}</span>
+    ${S.os === "win32" && S.local && isAdmin ? `<b>Windows 防火墙</b><span><button class="btn sm" id="fwBtn">允许 StudyAgent 通过防火墙</button><div class="small muted" id="fwMsg">手机连不上时点这里。Windows 会弹窗询问，点「是」。</div></span>` : ""}
     ${IN_APP ? `<b>手机 App</b><span><a class="btn sm" href="${APP_HOME}">连接其它电脑</a></span>` : ""}
     ${me ? `<b>我的访问码</b><span><code id="myCode" style="word-break:break-all">${esc(me.code)}</code> <button class="btn sm" id="copyCode">复制</button></span>` : ""}</div>
     <p class="small muted">其它设备第一次打开时输入访问码即可登录。外部程序调用接口时在请求头加 <code>Authorization: Bearer 访问码</code>，接口列表见 <a href="/api/docs" target="_blank">/api/docs</a>。</p>
+    <details class="small"><summary><b>手机连不上？</b></summary><ol>
+      <li>上面「允许手机连接」已勾选，状态显示「正在接受连接」。</li>
+      <li>手机和电脑连的是同一个 Wi-Fi（手机不要用流量；有些路由器的「访客网络」会隔离设备，请连主网络）。</li>
+      <li>手机上填的是「在手机上填」里的第一个地址，包括冒号后面的端口号。</li>
+      <li>Windows 电脑：点「允许 StudyAgent 通过防火墙」。如果第一次打开时防火墙弹窗点了「取消」，Windows 会一直拦截，这一步能修复。</li>
+      <li>先用手机浏览器打开这个地址试试：能打开说明网络通了，App 里填同样的地址即可；打不开就是网络或防火墙的问题。</li>
+      <li>公司、学校的网络常常禁止设备互相访问，可以用手机开热点让电脑连上再试。</li>
+    </ol></details>
     <h3>备份与迁移</h3><p class="small">导出你的全部学习记录（进度、作答、复习、测试、目标、对话、自己的题），可在另一台电脑的平台上导入。</p>
     <div class="row"><button class="btn" id="exp">导出备份</button><label class="btn">导入备份<input type="file" id="impF" accept=".json" hidden></label></div>
     <p class="small muted">数据目录：${esc(S.data_dir)}</p></div>
@@ -824,7 +843,17 @@ V.settings = async () => {
     <div class="row" style="margin-top:8px"><input type="text" id="ncName" placeholder="新模块名称"><button class="btn sm" id="ncAdd">添加模块</button></div></div>`;
 };
 V.settings.after = () => {
-  if ($("#lanToggle")) $("#lanToggle").onchange = async e => { const r = await api("/api/settings/lan", { method: "PUT", body: { lan: e.target.checked } }); $("#lanMsg").textContent = r.restart_needed ? "设置已保存，重新打开 StudyAgent 后生效。" : (r.lan ? "正在接受局域网连接。" : ""); $("#lanMsg").className = "small " + (r.restart_needed ? "bad-t" : "muted"); };
+  if ($("#lanToggle")) $("#lanToggle").onchange = async e => {
+    await api("/api/settings/lan", { method: "PUT", body: { lan: e.target.checked } });
+    const S = await api("/api/system"); $("#lanMsg").innerHTML = lanStatus(S); $("#lanAddr").innerHTML = lanAddrHtml(S);
+    if (e.target.checked && S.os === "win32" && S.local && $("#fwBtn")) $("#fwBtn").click();
+  };
+  if ($("#fwBtn")) $("#fwBtn").onclick = async () => {
+    const b = $("#fwBtn"); b.disabled = true; $("#fwMsg").textContent = "请在 Windows 弹出的窗口里点「是」…";
+    try { const r = await api("/api/settings/firewall", { method: "POST", body: {} }); $("#fwMsg").textContent = r.message; $("#fwMsg").className = "small " + (r.ok ? "ok-t" : "bad-t"); }
+    catch (err) { $("#fwMsg").textContent = err.message; $("#fwMsg").className = "small bad-t"; }
+    b.disabled = false;
+  };
   if ($("#copyCode")) $("#copyCode").onclick = async () => { try { await navigator.clipboard.writeText($("#myCode").textContent); toast("已复制"); } catch (e) { toast("请手动选中复制"); } };
   $("#exp").onclick = async () => { const r = await fetch("/api/export", { headers: { Authorization: "Bearer " + TOKEN } }); const blob = await r.blob(); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "studyagent-backup-" + todayStr() + ".json"; a.click(); };
   $("#impF").onchange = async e => { const f = e.target.files[0]; if (!f) return; const fd = new FormData(); fd.append("file", f); try { const r = await api("/api/import-data", { body: fd }); toast(`已导入 ${r.rows} 条记录`); await reloadBoot(); render(); } catch (err) { toast(err.message); } };

@@ -63,14 +63,14 @@ async def main():
         # plan, bank, review, resources, settings, classify
         for h in ['plan', 'bank', 'review', 'resources', 'settings', 'classify', 'newq', 'home']:
             await pg.goto(BASE + '/#' + h); await pg.wait_for_timeout(900)
-            await pg.screenshot(path=fSHOTS + '/ui_{h}.png', full_page=(h in ('bank',)))
+            await pg.screenshot(path=SHOTS + f'/ui_{h}.png', full_page=(h in ('bank',)))
         # mobile
         await pg.set_viewport_size({'width': 390, 'height': 844})
         for h in ['home', 'q-p22', 'chat']:
             await pg.goto(BASE + '/#' + h); await pg.wait_for_timeout(900)
             sw = await pg.evaluate("document.documentElement.scrollWidth")
             print('mobile', h, 'scrollWidth', sw)
-            await pg.screenshot(path=fSHOTS + '/ui_m_{h}.png')
+            await pg.screenshot(path=SHOTS + f'/ui_m_{h}.png')
         print('ERRORS:', errs[:10])
         await b.close()
 asyncio.run(main())
